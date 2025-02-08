@@ -1,8 +1,7 @@
-<<<<<<< HEAD
-HEAD
-
-# EcoRide Project
-5c653c2 (Initial commit)
-=======
-# EcoRide Project 66666popeipie
->>>>>>> 3e2fc67 (Premier Commit)
+## EcoRide Project
+This is an eco-friendly ride-sharing platform built with Laravel and MySQL.
+- Features:
+  - Secure authentication (JWT)
+  - Ride search and booking
+  - Admin dashboard
+  - User profile & ride history
