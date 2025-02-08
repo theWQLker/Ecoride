@@ -6,13 +6,15 @@ use Illuminate\Foundation\Configuration\Middleware;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
-        web: __DIR__.'/../routes/web.php',
-        commands: __DIR__.'/../routes/console.php',
-        health: '/up',
+        web: __DIR__.'/routes/web.php',          // ✅ Correct Web Route Path
+        commands: __DIR__.'/routes/console.php', // ✅ Correct Console Route Path
+        health: '/up'                            // ✅ Keeps health check
     )
     ->withMiddleware(function (Middleware $middleware) {
-        //
+        // ✅ Ensure the Role Middleware is registered
+        $middleware->append(\App\Http\Middleware\RoleMiddleware::class);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
-    })->create();
+        // ⚠️ Keep empty for now
+    })
+    ->create();
