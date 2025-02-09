@@ -31,10 +31,7 @@
 
         <!-- Page Content -->
         <main>
-            <form method="POST" action="{{ route('logout') }}">
-                @csrf
-                <button type="submit">Logout</button>
-            </form>
+        @yield('content') <!-- ✅ This ensures dashboard content is displayed -->
 
         </main>
     </div>
