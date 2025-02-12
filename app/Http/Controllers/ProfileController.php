@@ -2,59 +2,124 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\ProfileUpdateRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Redirect;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
+use App\Models\User;
+use App\Models\Vehicle;
+use App\Models\RideRequest;
 
 class ProfileController extends Controller
 {
     /**
-     * Display the user's profile form.
+     * Display the user's profile page.
      */
-    public function edit(Request $request): View
+    public function index(): View
     {
-        return view('profile.edit', [
-            'user' => $request->user(),
-        ]);
+        // $user = User::with(['rides' => function ($query) {
+        //     $query->where('status', 'completed')->orderBy('created_at', 'desc');
+        // }])->findOrFail(Auth::id());
+
+        // return view('profile.index', compact('user'));
+
+        $user = User::with([
+            'rides' => function ($query) {
+                $query->orderBy('created_at', 'desc'); // Removed status filter for debugging
+            },
+            'driverRides' => function ($query) {
+                $query->orderBy('created_at', 'desc');
+            },
+            'vehicle' // Ensure this is correctly fetched
+        ])->findOrFail(Auth::id());
+
+
+        $user = User::with([
+            'rides' => function ($query) {
+                $query->where('status', 'completed')->orderBy('created_at', 'desc');
+            },
+            'driverRides' => function ($query) {
+                $query->where('status', 'completed')->orderBy('created_at', 'desc');
+            },
+            'vehicle'
+        ])->findOrFail(Auth::id());
+
+        return view('profile.index', compact('user'));
     }
 
     /**
      * Update the user's profile information.
      */
-    public function update(ProfileUpdateRequest $request): RedirectResponse
+    public function update(Request $request): RedirectResponse
     {
-        $request->user()->fill($request->validated());
+        $user = User::findOrFail(Auth::id());
+        $validatedData = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
+        ]);
 
-        if ($request->user()->isDirty('email')) {
-            $request->user()->email_verified_at = null;
+        if ($user->email !== $validatedData['email']) {
+            $validatedData['email_verified_at'] = null;
         }
 
-        $request->user()->save();
-
-        return Redirect::route('profile.edit')->with('status', 'profile-updated');
+        $user->update($validatedData);
+        return Redirect::route('profile.index')->with('status', 'Profile updated successfully!');
     }
 
     /**
-     * Delete the user's account.
+     * Show the driver profile page.
      */
-    public function destroy(Request $request): RedirectResponse
+    public function driverProfile(): View
     {
-        $request->validateWithBag('userDeletion', [
-            'password' => ['required', 'current_password'],
+        $user = User::with('vehicle')->findOrFail(Auth::id());
+        return view('profile.driver', compact('user'));
+    }
+
+    /**
+     * Update vehicle information for driver.
+     */
+    public function updateVehicle(Request $request): RedirectResponse
+    {
+        $user = User::findOrFail(Auth::id());
+        $request->validate([
+            'model' => 'required|string|max:255',
+            'plate_number' => 'required|string|max:20',
+            'fuel_type' => 'required|string|max:50',
         ]);
 
-        $user = $request->user();
+        Vehicle::updateOrCreate(
+            ['driver_id' => $user->id],
+            $request->only(['model', 'plate_number', 'fuel_type'])
+        );
 
-        Auth::logout();
+        return redirect()->route('profile.driver')->with('success', 'Vehicle updated successfully');
+    }
 
-        $user->delete();
+    /**
+     * Update user and driver preferences.
+     */
+    public function updatePreferences(Request $request): RedirectResponse
+    {
+        $user = User::findOrFail(Auth::id());
+        $validated = $request->validate([
+            'no_smoking' => 'nullable|boolean',
+            'pets_allowed' => 'nullable|boolean',
+            'accept_long_trips' => 'nullable|boolean',
+            'car_type_preference' => 'nullable|string|max:255',
+            'enjoys_music' => 'nullable|boolean',
+            'prefers_female_driver' => 'nullable|boolean',
+            'custom_preference' => 'nullable|string|max:255',
+        ]);
 
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
+        $user->update($validated);
 
-        return Redirect::to('/');
+        DB::connection('mongodb')->collection('user_preferences')->updateOrInsert(
+            ['user_id' => $user->id],
+            array_merge(['user_id' => $user->id], $validated)
+        );
+
+        return redirect()->route('profile.index')->with('success', 'Preferences updated successfully!');
     }
 }

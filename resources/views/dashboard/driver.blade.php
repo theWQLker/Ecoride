@@ -10,7 +10,7 @@
 <p>Your role: <strong>{{ Auth::user()->role }}</strong></p>
 
     <!-- 🔍 View Available Rides Button -->
-    <a href="{{ route('driver.rides') }}" class="btn btn-primary">View Ride Requests</a>
+    <a href="{{ route('driver.rides_requested') }}" class="btn btn-primary">View Ride Requests</a>
     <!-- 🚘 View Accepted Rides -->
     <a href="{{ route('driver.assigned.rides') }}" class="btn btn-secondary">View Accepted Rides</a>
     <!-- 🚘 View Completed Rides -->

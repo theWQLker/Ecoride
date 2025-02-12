@@ -6,6 +6,9 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use App\Models\RideRequest;
+use App\Models\Vehicle;
+
 
 class User extends Authenticatable
 {
@@ -23,7 +26,20 @@ class User extends Authenticatable
         'password',
         'role',
     ];
+    public function vehicle()
+    {
+        return $this->hasOne(Vehicle::class, 'driver_id');
+    }
 
+    public function rides()
+    {
+        return $this->hasMany(RideRequest::class, 'user_id');
+    }
+
+    public function driverRides()
+    {
+        return $this->hasMany(RideRequest::class, 'driver_id');
+    }
     /**
      * The attributes that should be hidden for serialization.
      *

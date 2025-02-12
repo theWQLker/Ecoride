@@ -1,4 +1,4 @@
-<?php
+
 
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
@@ -14,8 +14,9 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-require __DIR__ . '/auth.php';
 
+require __DIR__ . '/auth.php';
+Route::get('/profile/index', [ProfileController::class, 'index']);
 // Protected Routes (Auth Required) // Routes protégées (authentification requise)
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard', function () {
@@ -59,10 +60,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/ride/{id}/complete', [RideRequestController::class, 'completeRide'])->name('ride.complete');
         Route::get('/driver/ride-history', [RideRequestController::class, 'driverRideHistory'])->name('driver.ride.history');
 
-        // Driver Profile
-        Route::get('/profile/driver', [ProfileController::class, 'driverProfile'])->name('profile.driver');
         Route::patch('/profile/driver/vehicle', [ProfileController::class, 'updateVehicle'])->name('profile.driver.vehicle.update');
         Route::post('/profile/driver/preferences', [ProfileController::class, 'updateDriverPreferences'])->name('profile.driver.preferences.update');
+    });
+
     });
 
     // User Routes // Routes utilisateur
@@ -79,19 +80,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/ride/{id}/cancel', [RideRequestController::class, 'cancel'])->name('ride.cancel');
     });
 
-    // Profile Routes // Routes du profil
-    Route::get('/profile', [ProfileController::class, 'index'])->name('profile.index');
+
+// Profile Routes // Routes du profil
+Route::middleware('auth')->group(function () {
     Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
     Route::post('/profile/preferences', [ProfileController::class, 'updatePreferences'])->name('profile.updatePreferences');
-    Route::post('profile/updatePreferences', [ProfileController::class, 'updatePreferences'])->name('profile.updatePreferences');
-
-
-    // Ride Requests Routes // Routes pour les demandes de trajets
-    Route::post('/ride/request', [RideRequestController::class, 'store'])->name('ride.request');
-    Route::post('/ride/{id}/accept', [RideRequestController::class, 'accept'])->name('ride.accept');
 
     // Logout Route // Déconnexion
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
+});
+
+// Ride Requests Routes // Routes pour les demandes de trajets
+Route::middleware(['auth'])->group(function () {
+    Route::post('/ride/request', [RideRequestController::class, 'store'])->name('ride.request');
+
+    Route::post('/ride/{id}/accept', [RideRequestController::class, 'accept'])->name('ride.accept');
 });

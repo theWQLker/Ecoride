@@ -5,67 +5,69 @@ namespace App\Http\Controllers;
 use App\Models\RideRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Http\RedirectResponse;
 
 class RideRequestController extends Controller
 {
+    /**
+     * Affiche les demandes de trajets en attente pour le conducteur.
+     * Displays pending ride requests for the driver.
+     */
     public function index()
     {
-        // Show pending ride requests for drivers
-        $rides = RideRequest::where('status', 'pending')->get();
+        $rides = RideRequest::where('status', 'pending')->orderBy('created_at', 'desc')->get();
         return view('driver.rides_requested', compact('rides'));
     }
 
-    public function driverRideHistory()
+    /**
+     * Stocke une nouvelle demande de trajet.
+     * Stores a new ride request.
+     */
+    public function store(Request $request): RedirectResponse
     {
-        // Retrieve rides that this driver has completed
-        $rides = RideRequest::where('driver_id', Auth::id())
-            ->where('status', 'completed')
-            ->get();
-
-        return view('driver.ride_history', compact('rides'));
-    }
-
-    public function store(Request $request)
-    {
-        // User submits a ride request
-        $request->validate([
-            'pickup_location' => 'required|string',
-            'dropoff_location' => 'required|string',
+        $validated = $request->validate([
+            'pickup_location' => 'required|string|max:255',
+            'dropoff_location' => 'required|string|max:255',
+            'ride_time' => 'required|date|after:now',
         ]);
 
-        RideRequest::create([
-            'user_id' => Auth::id(),
-            'pickup_location' => $request->pickup_location,
-            'dropoff_location' => $request->dropoff_location,
-            'status' => 'pending',
-        ]);
+        DB::beginTransaction();
 
-        return redirect()->route('user.dashboard')->with('success', 'Ride request sent!');
+        try {
+            $ride = RideRequest::create([
+                'user_id' => Auth::id(),
+                'pickup_location' => $validated['pickup_location'],
+                'dropoff_location' => $validated['dropoff_location'],
+                'ride_time' => $validated['ride_time'],
+                'status' => 'pending',
+            ]);
+
+            DB::commit();
+            return redirect()->route('ride.request.view')->with('success', 'Ride request submitted successfully.');
+        } catch (\Exception $e) {
+            DB::rollback();
+            return redirect()->back()->with('error', 'Failed to create ride request.');
+        }
     }
-    public function userRides()
-    {
-        // Retrieve all rides requested by the logged-in user
-        $rides = RideRequest::where('user_id', Auth::id())->get();
 
-        return view('user.ride_history', compact('rides'));
-    }
-
-    public function assignedRides()
+    /**
+     * Accepte une demande de trajet en tant que conducteur.
+     * Accepts a ride request as a driver.
+     */
+    public function accept($id): RedirectResponse
     {
-        // Retrieve rides assigned to the logged-in driver
-        $rides = RideRequest::where('driver_id', Auth::id())
-            ->where('status', 'accepted')
-            ->get();
+        $user = Auth::user();
 
-        return view('driver.assigned_rides', compact('rides'));
-    }
-    public function accept($id)
-    {
-        // Driver accepts a ride request
+        // Ensure the driver has a registered vehicle
+        if (!$user->vehicle) {
+            return redirect()->back()->with('error', 'You must register a vehicle before accepting rides.');
+        }
+        
         $ride = RideRequest::findOrFail($id);
 
-        if ($ride->status !== 'pending' || $ride->driver_id !== null) {
-            return redirect()->route('driver.rides')->with('error', 'This ride has already been taken.');
+        if ($ride->status !== 'pending') {
+            return redirect()->back()->with('error', 'This ride request has already been taken.');
         }
 
         $ride->update([
@@ -73,43 +75,68 @@ class RideRequestController extends Controller
             'status' => 'accepted',
         ]);
 
-        return redirect()->route('driver.dashboard')->with('success', 'Ride accepted!');
+        return redirect()->route('driver.rides')->with('success', 'Ride request accepted.');
     }
-    public function completeRide($id)
+
+    /**
+     * Mark a ride request as completed.
+     * Marque une demande de trajet comme terminée.
+     */
+    public function completeRide($id): RedirectResponse
     {
         $ride = RideRequest::findOrFail($id);
 
-        // Ensure only the assigned driver can mark the ride as completed
-        if (Auth::id() !== $ride->driver_id) {
-            return redirect()->route('driver.assigned.rides')->with('error', 'You are not assigned to this ride.');
+        if ($ride->status !== 'accepted') {
+            return redirect()->back()->with('error', 'This ride cannot be completed yet.');
         }
 
         $ride->update(['status' => 'completed']);
-
-        return redirect()->route('driver.assigned.rides')->with('success', 'Ride marked as completed.');
+        return redirect()->route('driver.ride.history')->with('success', 'Ride marked as completed.');
     }
 
-    public function cancelRide($id)
-{
-    $ride = RideRequest::findOrFail($id);
-
-    // Users can only cancel their own rides if they are still pending
-    if (Auth::id() !== $ride->user_id || $ride->status !== 'pending') {
-        return redirect()->route('user.ride.history')->with('error', 'You cannot cancel this ride.');
-    }
-
-    $ride->update(['status' => 'canceled']);
-
-    return redirect()->route('user.ride.history')->with('success', 'Ride canceled.');
-}
-
-
-    public function cancel($id)
+    /**
+     * Cancel a ride request.
+     * Annule une demande de trajet.
+     */
+    public function cancel($id): RedirectResponse
     {
-        // User cancels a ride
         $ride = RideRequest::findOrFail($id);
-        $ride->update(['status' => 'canceled']);
 
-        return redirect()->route('user.dashboard')->with('success', 'Ride canceled.');
+        if ($ride->user_id !== Auth::id()) {
+            return redirect()->back()->with('error', 'Unauthorized action.');
+        }
+
+        $ride->update(['status' => 'cancelled']);
+        return redirect()->route('user.ride.history')->with('success', 'Ride request cancelled.');
+    }
+
+    /**
+     * Display ride history for a user.
+     * Affiche l'historique des trajets d'un utilisateur.
+     */
+    public function userRides()
+    {
+        $rides = RideRequest::where('user_id', Auth::id())->get();
+        return view('user.ride_history', compact('rides'));
+    }
+
+    /**
+     * Display assigned rides for a driver.
+     * Affiche les trajets assignés à un conducteur.
+     */
+    public function assignedRides()
+    {
+        $rides = RideRequest::where('driver_id', Auth::id())->where('status', 'accepted')->get();
+        return view('driver.assigned_rides', compact('rides'));
+    }
+
+    /**
+     * Display completed rides for a driver.
+     * Affiche les trajets terminés d'un conducteur.
+     */
+    public function driverRideHistory()
+    {
+        $rides = RideRequest::where('driver_id', Auth::id())->where('status', 'completed')->get();
+        return view('driver.ride_history', compact('rides'));
     }
 }
