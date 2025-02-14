@@ -8,6 +8,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\RideRequestController;
 use App\Models\RideRequest;
+use App\Http\Controllers\AdminController;
 
 // Public Routes (No Auth Required) // Routes publiques (aucune authentification requise)
 Route::get('/', function () {
@@ -39,6 +40,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::put('/admin/users/{id}', [UserManagementController::class, 'update'])->name('admin.users.update');
         
         // Gestion des trajets // Ride Management
+
+        Route::get('/admin/rides', [AdminController::class, 'viewRides'])->name('admin.rides');
+
         Route::get('/admin/rides', function () {
             $rides = RideRequest::with('user', 'driver')->get();
             return view('admin.rides.index', compact('rides'));

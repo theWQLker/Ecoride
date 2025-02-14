@@ -23,6 +23,14 @@ class AdminController extends Controller
         return view('admin.rides.index', compact('rides'));
     }
 
+    public function viewRides()
+    {
+        $rides = RideRequest::with(['user',
+            'driver'
+        ])->get();
+        return view('admin.rides', compact('rides'));
+    }
+
     // Show all carpools (Admin Panel)
     public function carpools()
     {

@@ -130,6 +130,8 @@ class RideRequestController extends Controller
         return view('driver.assigned_rides', compact('rides'));
     }
 
+    
+    
     /**
      * Display completed rides for a driver.
      * Affiche les trajets terminés d'un conducteur.
